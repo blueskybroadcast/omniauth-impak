@@ -29,7 +29,7 @@ module OmniAuth
 
       def request_phase
         slug = session['omniauth.params']['origin'].gsub(/\//,"")
-        redirect client.auth_code.authorize_url({"ReturnUrl" => callback_url + "?slug=#{slug}"})
+        redirect authorize_url + "?ReturnUrl=" + CGI.escape(callback_url + "?slug=#{slug}")
       end
 
       def callback_phase
@@ -37,8 +37,9 @@ module OmniAuth
           :token =>  request.params['str_token'],
           :token_expires => 60
         }
+        puts "!!!! AUTH = #{self.env['omniauth.auth'].inspect}"
+        puts "!!!! ORIGIN = #{self.env['omniauth.origin'].inspect}"
         self.env['omniauth.auth'] = auth_hash
-        self.env['omniauth.origin'] = '/' + request.params['origin']
         call_app!
       end
 
