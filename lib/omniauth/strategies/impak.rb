@@ -1,6 +1,5 @@
 require 'omniauth-oauth2'
 require 'rest_client'
-require 'multi_xml'
 
 module OmniAuth
   module Strategies
@@ -8,18 +7,19 @@ module OmniAuth
       option :name, 'impak'
 
       option :client_options, {
-        :user_info_url => 'http://portal.nasn.org/Bluesky/service.asmx/Bluesky_Authenticate_NASN_Token',
-        :authorize_url => 'https://portal.nasn.org/members_online/members/path_login.asp'
+        user_info_url: 'http://portal.nasn.org/Bluesky/service.asmx/Bluesky_Authenticate_NASN_Token',
+        authorize_url: 'http://portal.nasn.org/members_online/members/path_login.asp',
+        authentication_token: 'MUST BE SET'
       }
 
       uid { raw_info[:id] }
 
       info do
         {
-          :first_name => raw_info[:first_name],
-          :last_name => raw_info[:last_name],
-          :email => raw_info[:email],
-          :is_member => is_member?
+          first_name: raw_info[:first_name],
+          last_name: raw_info[:last_name],
+          email: raw_info[:email],
+          is_member: is_member?
         }
       end
 
@@ -59,7 +59,7 @@ module OmniAuth
       end
 
       def get_user_info
-        response = RestClient.get(user_info_url, params: { str_token: access_token[:token], str_security_key: 's5m13@4dl#093n!' })
+        response = RestClient.get(user_info_url, params: { str_token: access_token[:token], str_security_key: authentication_token })
         response = Nokogiri::XML response
 
         info = {
@@ -72,6 +72,10 @@ module OmniAuth
       end
 
       private
+
+      def authentication_token
+        options.client_options.authentication_token
+      end
 
       def authorize_url
         options.client_options.authorize_url
