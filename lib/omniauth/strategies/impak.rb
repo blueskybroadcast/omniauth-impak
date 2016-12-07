@@ -29,7 +29,7 @@ module OmniAuth
 
       def request_phase
         slug = session['omniauth.params']['origin'].gsub(/\//,"")
-        redirect authorize_url + "?ReturnUrl=" + CGI.escape(callback_url + "?slug=#{slug}")
+        redirect authorize_url + "?ReturnUrl=" + CGI.escape(callback_url + "&slug=#{slug}")
       end
 
       def callback_phase
