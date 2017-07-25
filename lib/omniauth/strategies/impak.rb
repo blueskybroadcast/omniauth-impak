@@ -6,6 +6,8 @@ module OmniAuth
     class Impak < OmniAuth::Strategies::OAuth2
       option :name, 'impak'
 
+      option :app_options, { app_event_id: nil }
+
       option :client_options, {
         user_info_url: 'http://portal.nasn.org/Bluesky/service.asmx/Bluesky_Authenticate_NASN_Token',
         authorize_url: 'http://portal.nasn.org/members_online/members/path_login.asp',
@@ -33,6 +35,8 @@ module OmniAuth
       end
 
       def callback_phase
+        @app_event = prepare_app_event
+
         self.access_token = {
           :token =>  request.params['str_token'],
           :token_expires => 60
@@ -40,6 +44,7 @@ module OmniAuth
         puts "!!!! AUTH = #{self.env['omniauth.auth'].inspect}"
         puts "!!!! ORIGIN = #{self.env['omniauth.origin'].inspect}"
         self.env['omniauth.auth'] = auth_hash
+        self.env['omniauth.app_event_id'] = @app_event.id
         call_app!
       end
 
@@ -60,8 +65,22 @@ module OmniAuth
       end
 
       def get_user_info
-        response = RestClient.get(user_info_url, params: { str_token: access_token[:token], str_security_key: authentication_token })
-        response = Nokogiri::XML response
+        request_log = "#{provider_name} Authentication Request:\nGET #{user_info_url}, params: { token: #{access_token[:token]} }"
+        @app_event.logs.create(level: 'info', text: request_log)
+
+        begin
+          response = RestClient.get(user_info_url, params: { str_token: access_token[:token], str_security_key: authentication_token })
+        rescue RestClient::ExceptionWithResponse => e
+          error_log = "#{provider_name} Authentication Response Error #{e.message} (code: #{e.response&.code}):\n#{e.response}"
+          @app_event.logs.create(level: 'error', text: error_log)
+          @app_event.fail!
+          return {}
+        end
+
+        response_log = "#{provider_name} Authentication Response (code: #{response.code}): \n#{response}"
+        @app_event.logs.create(level: 'info', text: response_log)
+
+        response = Nokogiri::XML.parse(response)
 
         info = {
           id: response.xpath('//status_id').text,
@@ -70,6 +89,19 @@ module OmniAuth
           email: response.xpath('//email').text,
           is_member: response.xpath('//isMember').text
         }
+
+        app_event_data = {
+          user_info: {
+            uid: uid,
+            first_name: info[:first_name],
+            last_name: info[:last_name],
+            email: info[:email]
+          }
+        }
+
+        @app_event.update(raw_data: app_event_data)
+
+        info
       end
 
       private
@@ -88,6 +120,16 @@ module OmniAuth
 
       def user_info_url
         options.client_options.user_info_url
+      end
+
+      def provider_name
+        options.name
+      end
+
+      def prepare_app_event
+        slug = request.params['slug']
+        account = Account.find_by(slug: slug)
+        account.app_events.where(id: options.app_options.app_event_id).first_or_create(activity_type: 'sso')
       end
     end
   end
