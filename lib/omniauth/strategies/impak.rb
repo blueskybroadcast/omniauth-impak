@@ -92,7 +92,7 @@ module OmniAuth
 
         app_event_data = {
           user_info: {
-            uid: uid,
+            uid: info[:id],
             first_name: info[:first_name],
             last_name: info[:last_name],
             email: info[:email]
